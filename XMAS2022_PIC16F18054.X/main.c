@@ -1,39 +1,12 @@
-#include <time.h>
 #include "mcc_generated_files/system/system.h"
 #include "led_wrap.h"
+#include "configuration.h"
 
-#define NUM_LED         (15U)
-#define MAX_SPAN        (200U)
-#define TOTAL_ITERATION (200000U)
+volatile unsigned int tim1_int_count = 0;
 
-#define MIN_PWM         (30U)
-#define MAX_PWM         (90U)
+volatile unsigned long tim1_isr_total_num = 0;
 
-#define DIR_DOWN        (0U)
-#define DIR_UP          (1U)
-
-#define MIN_SPEED       (1U)
-#define MAX_SPEED       (8U)
-
-
-unsigned int tim1_int_count = 0;
-
-unsigned long tim1_isr_total_num = 0;
-
-unsigned char led_on_int[NUM_LED] = {100, 100, 100, 100, 100,
-                                    100, 100, 100, 100, 100,
-                                    100, 100, 100, 100, 100
-                                    };
-
-unsigned char led_direction[NUM_LED] = {1,1,1,1,1,
-                                        1,1,1,1,1,
-                                        1,1,1,1,1
-                                        };
-
-unsigned char led_speed[NUM_LED] = {1,2,3,4,5,
-                                    5,4,3,2,1,
-                                    1,2,3,4,5
-                                    };
+volatile unsigned char refresh_config = 0;
 
 void (*pON[NUM_LED]) (void);
 void (*pOFF[NUM_LED]) (void);
@@ -73,58 +46,16 @@ static void initpFun()
     pOFF[14] = LED_15_OFF;
 }
 
-static int rand_range(int lower, int upper)
-{
-    return (rand() % (upper - lower + 1)) + lower;
-}
-
-
-void initialConfig()
-{
-    srand((unsigned int)(time(NULL)));
-    
-    for(uint8_t i = 0; i < NUM_LED; i++)
-    {
-        led_on_int[i] = (unsigned char)rand_range(MIN_PWM, MAX_PWM);
-        led_direction[i] = (unsigned char)rand_range(DIR_DOWN, DIR_UP);
-        led_speed[i] = (unsigned char)rand_range(MIN_SPEED, MAX_SPEED);
-    }
-}
-
-void nextConfig()
-{
-    for(uint8_t i = 0; i < NUM_LED; i++)
-    {
-        if(led_on_int[i] >= MAX_SPAN)
-        {
-            led_direction[i] = DIR_DOWN;
-        }
-        else if(led_on_int[i] <= 0)
-        {
-            led_direction[i] = DIR_UP;
-        }
-        
-        if(led_direction[i] == DIR_UP)
-        {
-            led_on_int[i] += led_speed[i];
-        }
-        else
-        {
-            if(led_on_int[i] < led_speed[i]) //The difference would be negative
-            {
-                led_on_int[i] = 0;
-            }
-            else
-            {
-                led_on_int[i] -= led_speed[i];
-            }     
-        }
-    }
-}
-
 void BTN_ISR()
 {     
     RESET();
+}
+
+void LED_ISR()
+{
+    tim1_int_count++;
+    tim1_isr_total_num++;
+    refresh_config = 1;
 }
 
 void prepareSleep()
@@ -142,14 +73,12 @@ void prepareSleep()
     __delay_ms(10);
 }
 
-void LED_ISR()
+
+void refreshConfig()
 {
-    tim1_int_count++;
-    tim1_isr_total_num++;
-    
     for(uint8_t i = 0; i < NUM_LED; i++)
     {
-        if(led_on_int[i] < tim1_int_count)
+        if(led_on_interval[i] < tim1_int_count)
         {
             pON[i]();
         }
@@ -164,6 +93,8 @@ void LED_ISR()
         tim1_int_count = 0;
         nextConfig();
     }
+    
+    refresh_config = 0;    
 }
 
 
@@ -184,6 +115,11 @@ int main(void)
     
     while (1)
     {
+        if(refresh_config == 1)
+        {
+            refreshConfig();
+        }
+        
         if(tim1_isr_total_num >= TOTAL_ITERATION)
         {
             prepareSleep();

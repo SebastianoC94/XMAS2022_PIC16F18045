@@ -60,12 +60,12 @@ void Timer1_Initialize(void)
     T1GCON = 0x0;
     //TGSS T1GPPS; 
     T1GATE = 0x0;
-    //TMRCS FOSC/4; 
-    T1CLK = 0x1;
-    //TMRH 255; 
-    TMR1H = 0xFF;
-    //TMRL 252; 
-    TMR1L = 0xFC;
+    //TMRCS HFINTOSC; 
+    T1CLK = 0x3;
+    //TMRH 254; 
+    TMR1H = 0xFE;
+    //TMRL 177; 
+    TMR1L = 0xB1;
 
     // Load the TMR1 value to reload variable
     timer1ReloadVal=(uint16_t)((TMR1H << 8) | TMR1L);
